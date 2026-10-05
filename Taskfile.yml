@@ -1,0 +1,32 @@
+# Команды проекта: https://taskfile.dev  (установка: winget install Task.Task)
+version: '3'
+
+vars:
+  DEV: docker compose run --rm dev
+
+tasks:
+  default:
+    silent: true
+    cmds:
+      - task --list
+
+  test:
+    desc: Тесты (с детектором гонок)
+    cmds:
+      - '{{.DEV}} go test -race ./...'
+
+  cover:
+    desc: Покрытие кода тестами
+    cmds:
+      - '{{.DEV}} sh -c "go test -race -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1"'
+
+  lint:
+    desc: Линтер
+    cmds:
+      - docker compose run --rm lint golangci-lint run ./...
+
+  check:
+    desc: Линтер + тесты — перед коммитом
+    cmds:
+      - task: lint
+      - task: test

@@ -1,0 +1,2 @@
+# Всегда LF в репозитории — иначе на Windows ломаются shell-скрипты в Docker
+* text=auto eol=lf

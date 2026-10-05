@@ -1,0 +1,23 @@
+services:
+  # Окружение разработки:
+  #   docker compose run --rm dev go test ./...
+  dev:
+    image: golang:1.27
+    working_dir: /app
+    volumes:
+      - .:/app
+      - gomod:/go/pkg/mod
+      - gocache:/root/.cache/go-build
+
+  lint:
+    image: golangci/golangci-lint:v2.14.0
+    working_dir: /app
+    volumes:
+      - .:/app
+      - gomod:/go/pkg/mod
+      - lintcache:/root/.cache
+
+volumes:
+  gomod:
+  gocache:
+  lintcache:

@@ -1,0 +1,44 @@
+# Конфигурация golangci-lint v2: https://golangci-lint.run/docs/configuration/
+version: "2"
+
+linters:
+  # По умолчанию включены: errcheck, govet, ineffassign, staticcheck, unused.
+  enable:
+    - bodyclose     # не закрыто тело HTTP-ответа — утечка соединений
+    - errorlint     # сравнение ошибок через == вместо errors.Is/As
+    - gocritic      # набор проверок на ошибки и неудачные конструкции
+    - gosec         # типичные проблемы безопасности
+    - nilerr        # возврат nil вместо пойманной ошибки
+    - rowserrcheck  # не проверен rows.Err() после цикла по строкам
+    - sqlclosecheck # не закрыты sql.Rows / sql.Stmt
+    - thelper       # тестовые помощники без t.Helper()
+    - unconvert     # лишние преобразования типов
+    - unparam       # параметры и результаты, которые всегда одинаковые
+    - usestdlibvars # "GET" вместо http.MethodGet и т.п.
+  settings:
+    errcheck:
+      # Ошибки этих методов при выходе мы осознанно не обрабатываем.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*database/sql.DB).Close
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      # В тестах допустимо: временные файлы с правами 0644, игнор ошибок подготовки.
+      - path: _test\.go
+        linters: [gosec, errcheck]
+      # tools/ — генераторы для разработчика: не входят в exe и не получают
+      # чужой ввод; приведения типов там ограничены по смыслу (цвет <= 255).
+      - path: tools/
+        linters: [gosec]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      # Импорты своего модуля — отдельной группой после внешних.
+      local-prefixes:
+        - github.com/TaRosh/webParser

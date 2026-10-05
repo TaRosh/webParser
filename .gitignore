@@ -1,0 +1,18 @@
+# Ключи доступа к репозиторию — не коммитить!
+deploy_key
+deploy_key.pub
+
+# Результаты парсинга и артефакты
+/out/
+/bin/
+coverage.out
+*.xlsx
+*.csv
+
+# Ключ сервисного аккаунта Google (шаг 6) — секрет
+credentials*.json
+.env
+
+# IDE
+.idea/
+.vscode/
