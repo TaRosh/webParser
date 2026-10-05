@@ -3,6 +3,7 @@ package catalog
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"unicode"
@@ -84,6 +85,10 @@ func ParsePrice(s string) (Price, error) {
 	whole, err := strconv.ParseInt(intPart, 10, 64)
 	if err != nil {
 		return Price{}, fmt.Errorf("%w %q: %w", errPrice, s, err)
+	}
+	if whole > math.MaxInt64/100 {
+		// Иначе whole*100 молча переполнит int64 и вернёт мусор.
+		return Price{}, fmt.Errorf("%w %q: слишком большое число", errPrice, s)
 	}
 	var frac int64
 	if fracPart != "" {
