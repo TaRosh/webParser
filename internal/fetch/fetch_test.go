@@ -85,7 +85,7 @@ func TestRobots(t *testing.T) {
 		{"disallowed — page not requested", 200, "User-agent: *\nDisallow: /private\n", "/private/x", ErrDisallowed, 0},
 		{"our own group applies", 200, "User-agent: webParser\nDisallow: /\n\nUser-agent: *\nAllow: /\n", "/a", ErrDisallowed, 0},
 		{"query is checked too", 200, "User-agent: *\nDisallow: /*?sort=\n", "/list?sort=price", ErrDisallowed, 0},
-		{"robots.txt 5xx — whole site closed", 503, "", "/a", ErrDisallowed, 0},
+		{"robots.txt 5xx — whole site closed, real reason reported", 503, "", "/a", ErrRobotsUnavailable, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -376,5 +376,21 @@ func TestBackoffGrows(t *testing.T) {
 		if got < min || got > min+50*time.Millisecond {
 			t.Errorf("backoff(%d) = %v, want [%v, %v]", attempt, got, min, min+50*time.Millisecond)
 		}
+	}
+}
+
+// Сайт не отвечает вообще (как при блокировке): robots.txt недоступен —
+// сайт закрыт, а в ошибке настоящая причина, а не "закрыто в robots.txt".
+func TestRobotsUnreachable(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	url := srv.URL
+	srv.Close() // соединение будет отклонено
+
+	_, err := testClient().Get(context.Background(), url+"/page")
+	if !errors.Is(err, ErrRobotsUnavailable) || errors.Is(err, ErrDisallowed) {
+		t.Fatalf("err = %v, want ErrRobotsUnavailable (and not ErrDisallowed)", err)
+	}
+	if strings.Count(err.Error(), url+"/page") != 1 {
+		t.Errorf("URL must appear once: %v", err)
 	}
 }

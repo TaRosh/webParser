@@ -93,7 +93,7 @@ func listings(ctx context.Context, f Fetcher, opt Options, log *slog.Logger) (Re
 
 		page, err := f.Get(ctx, u)
 		if err != nil {
-			return res, fmt.Errorf("страница каталога %s: %w", u, err)
+			return res, fmt.Errorf("страница каталога: %w", err) // адрес уже есть в err
 		}
 		visited[page.URL.String()] = struct{}{} // адрес после редиректа тоже считаем пройденным
 

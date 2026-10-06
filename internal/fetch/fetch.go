@@ -25,6 +25,9 @@ import (
 var (
 	// ErrDisallowed — страница закрыта в robots.txt; мы её не скачиваем.
 	ErrDisallowed = errors.New("страница закрыта в robots.txt")
+	// ErrRobotsUnavailable — robots.txt не удалось получить (сеть, блокировка, 5xx).
+	// По RFC 9309 сайт в этом случае считается полностью закрытым.
+	ErrRobotsUnavailable = errors.New("robots.txt недоступен — по стандарту RFC 9309 сайт считается закрытым")
 	// ErrBlocked — сайт ответил 403 или продолжает отвечать 429.
 	// Обходить ограничение мы не будем: парсинг этого сайта останавливается.
 	ErrBlocked = errors.New("сайт ограничил доступ — парсинг остановлен")
@@ -112,6 +115,8 @@ type host struct {
 	rules   robots.Group
 	limiter *rate.Limiter
 	blocked atomic.Bool
+	// robotsErr — почему robots.txt недоступен (nil, если правила получены).
+	robotsErr error
 }
 
 func New(cfg Config, log *slog.Logger) *Client {
@@ -132,6 +137,9 @@ func (c *Client) Get(ctx context.Context, rawURL string) (*Page, error) {
 		return nil, ErrBlocked
 	}
 	if !h.rules.Allowed(u.RequestURI()) {
+		if h.robotsErr != nil { // закрыто не правилами, а недоступностью robots.txt — говорим настоящую причину
+			return nil, fmt.Errorf("%s: %w: %w", rawURL, ErrRobotsUnavailable, h.robotsErr)
+		}
 		return nil, fmt.Errorf("%s: %w", rawURL, ErrDisallowed)
 	}
 
@@ -232,7 +240,7 @@ func (c *Client) host(ctx context.Context, u *url.URL) *host {
 		// robots.txt качаем с собственным таймаутом, независимо от ctx.
 		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.cfg.Timeout)
 		defer cancel()
-		h.rules = c.loadRobots(rctx, key)
+		h.rules, h.robotsErr = c.loadRobots(rctx, key)
 		delay := max(c.cfg.MinDelay, h.rules.CrawlDelay)
 		// Token bucket на 1 токен, пополнение раз в delay = не чаще одного запроса в delay.
 		h.limiter = rate.NewLimiter(rate.Every(delay), 1)
@@ -243,10 +251,11 @@ func (c *Client) host(ctx context.Context, u *url.URL) *host {
 
 // loadRobots скачивает и разбирает robots.txt по правилам RFC 9309:
 // 2xx — разбираем; 4xx — файла нет, можно всё; 5xx или сеть — нельзя ничего.
-func (c *Client) loadRobots(ctx context.Context, base string) robots.Group {
+// unavailable != nil — robots.txt получить не удалось (причина для сообщения).
+func (c *Client) loadRobots(ctx context.Context, base string) (g robots.Group, unavailable error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/robots.txt", nil)
 	if err != nil {
-		return robots.DisallowAll()
+		return robots.DisallowAll(), err
 	}
 	req.Header.Set("User-Agent", c.cfg.UserAgent)
 
@@ -255,18 +264,18 @@ func (c *Client) loadRobots(ctx context.Context, base string) robots.Group {
 	resp, err := (&http.Client{Timeout: c.cfg.Timeout}).Do(req)
 	if err != nil {
 		c.log.Warn("robots.txt недоступен — считаем сайт закрытым", "site", base, "err", err)
-		return robots.DisallowAll()
+		return robots.DisallowAll(), err
 	}
 	defer resp.Body.Close()
 
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode <= 299:
-		return robots.Parse(resp.Body).Group(c.cfg.Agent)
+		return robots.Parse(resp.Body).Group(c.cfg.Agent), nil
 	case resp.StatusCode >= 400 && resp.StatusCode <= 499:
-		return robots.AllowAll()
+		return robots.AllowAll(), nil
 	default:
 		c.log.Warn("robots.txt вернул ошибку — считаем сайт закрытым", "site", base, "status", resp.StatusCode)
-		return robots.DisallowAll()
+		return robots.DisallowAll(), fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 }
 
