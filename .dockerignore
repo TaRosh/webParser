@@ -1,0 +1,8 @@
+.git
+deploy_key
+deploy_key.pub
+credentials*.json
+.env
+out/
+bin/
+coverage.out

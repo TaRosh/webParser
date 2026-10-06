@@ -1,7 +1,25 @@
 services:
+  # Запуск парсера в контейнере (результат — в папке ./out):
+  #   docker compose run --rm parser -limit 100
+  #   docker compose run --rm parser -details -out out/books.csv
+  # Для Google Таблиц смонтируйте ключ:
+  #   docker compose run --rm -v ./credentials.json:/work/credentials.json:ro parser -sheet <ссылка>
+  parser:
+    build: .
+    image: webparser:latest
+    # Образ работает от непривилегированного пользователя, но папка ./out
+    # проброшена с хоста: в Docker Desktop (Windows/macOS) она видна в контейнере
+    # как принадлежащая root, и записать туда может только root. Контейнер
+    # одноразовый, оболочки и утилит в distroless нет — риск минимальный.
+    # На Linux вместо этого запускайте со своим UID: --user "$(id -u):$(id -g)".
+    user: root
+    volumes:
+      - ./out:/work/out
+
   # Окружение разработки:
   #   docker compose run --rm dev go test ./...
   dev:
+    profiles: [dev]
     image: golang:1.27
     working_dir: /app
     volumes:
@@ -10,6 +28,7 @@ services:
       - gocache:/root/.cache/go-build
 
   lint:
+    profiles: [dev]
     image: golangci/golangci-lint:v2.14.0
     working_dir: /app
     volumes:

@@ -30,3 +30,16 @@ tasks:
     cmds:
       - task: lint
       - task: test
+
+  run:
+    desc: 'Запустить парсер в Docker; аргументы после --, например: task run -- -limit 100'
+    cmds:
+      - docker compose run --rm parser {{.CLI_ARGS}}
+
+  build:
+    desc: Собрать бинарники для Linux и Windows в bin/
+    cmds:
+      - >-
+        {{.DEV}} sh -c "
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o bin/webparser ./cmd/webparser &&
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o bin/webparser.exe ./cmd/webparser"
